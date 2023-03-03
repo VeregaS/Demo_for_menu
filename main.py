@@ -3,54 +3,70 @@ import mediapipe as mp
 import pyautogui
 import asyncio
 
+# MEDIAPIPE CONSTS
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
+# CAM CONSTS
 cap = cv2.VideoCapture(0)
-
-w1, h1 = 1920, 1080
 w, h = 640, 480
-cf_x = w1 / w
-cf_y = h1 / h
+w1, h1 = 1920, 1080
 cap.set(3, w)
 cap.set(4, h)
 
-cords = {}
-pTime = 0
-last_status, hand_type = "", ""
-mouse_x = 0
-mouse_y = 0
+# X, Y CONSTS
+cf_x, cf_y = w1 / w, h1 / h
+mouse_x, mouse_y = 0, 0
+
+# Others
+cords, last_status, hand_type = {}, "", ""
+hands_detect = True
+pyautogui.FAILSAFE = False
 
 
-def main():
+async def hands_detection():
     global mouse_x, mouse_y
-    with mp_hands.Hands(max_num_hands=1, min_tracking_confidence=0.7, min_detection_confidence=0.7) as hands:
+    if hands_detect:
+        with mp_hands.Hands(max_num_hands=1, min_tracking_confidence=0.7, min_detection_confidence=0.7) as hands:
+            while True:
+
+                # ------------------------- Camera Load --------------------- #
+                success, frame = cap.read()
+                frame = cv2.flip(frame, 1)
+                imgRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = hands.process(imgRGB)
+                # ----------------------------------------------------------- #
+
+                # ++++++++++++++++++++++ Main body +++++++++++++++++++++++++++++ #
+                if results.multi_hand_landmarks:
+
+                    # ================== Finger Pos ======================== #
+                    for hand_landmarks in results.multi_hand_landmarks:
+                        for id, lm in enumerate(hand_landmarks.landmark):
+                            h, w, c = frame.shape
+                            cx, cy = int(lm.x * w), int(lm.y * h)
+                            cords[f"{id}"] = cx, cy
+                    # ====================================================== #
+
+                    # _____________________Mouse____________________________ #
+                    mouse_x, mouse_y = int(cords['8'][0]), int(cords['8'][1])
+                    # ______________________________________________________ #
+                # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+                await asyncio.sleep(0)
+
+
+async def hands_func():
+    if hands_detect:
         while True:
+            pyautogui.moveTo(mouse_x * cf_x, mouse_y * cf_y)
+            await asyncio.sleep(0)
 
-            # ------------------------- Camera Load --------------------- #
-            success, frame = cap.read()
-            frame = cv2.flip(frame, 1)
-            imgRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = hands.process(imgRGB)
-            # ----------------------------------------------------------- #
 
-            # ++++++++++++++++++++++ Main body +++++++++++++++++++++++++++++ #
-            if results.multi_hand_landmarks:
-
-                # ================== Finger Pos ======================== #
-                for hand_landmarks in results.multi_hand_landmarks:
-                    for id, lm in enumerate(hand_landmarks.landmark):
-                        h, w, c = frame.shape
-                        cx, cy = int(lm.x * w), int(lm.y * h)
-                        cords[f"{id}"] = cx, cy
-                # ====================================================== #
-
-                # _____________________Mouse____________________________ #
-                mouse_x, mouse_y = int(cords['8'][0]), int(cords['8'][1])
-                pyautogui.moveTo(mouse_x * cf_x, mouse_y * cf_y)
-                # ______________________________________________________ #
-            # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
-
+async def main():
+    task1 = asyncio.create_task(hands_detection())
+    task2 = asyncio.create_task(hands_func())
+    await task1
+    await task2
 
 if __name__ == '__main__':
     asyncio.run(main())
