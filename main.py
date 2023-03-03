@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import mediapipe as mp
 import pyautogui
@@ -17,15 +19,21 @@ cap.set(4, h)
 # X, Y CONSTS
 cf_x, cf_y = w1 / w, h1 / h
 mouse_x, mouse_y = 0, 0
+shandx, shandy = 0, 0
+plocX, plocY = 0, 0
+clocX, clocY = 0, 0
 
 # Others
 cords, last_status, hand_type = {}, "", ""
 hands_detect = True
 pyautogui.FAILSAFE = False
+smoothening = 2.5
+click_recognize_delt = 10
+lenght = 0
 
 
 async def hands_detection():
-    global mouse_x, mouse_y
+    global mouse_x, mouse_y, shandx, shandy, lenght
     if hands_detect:
         with mp_hands.Hands(max_num_hands=1, min_tracking_confidence=0.7, min_detection_confidence=0.7) as hands:
             while True:
@@ -50,15 +58,24 @@ async def hands_detection():
 
                     # _____________________Mouse____________________________ #
                     mouse_x, mouse_y = int(cords['8'][0]), int(cords['8'][1])
+                    shandx, shandy = int(cords['12'][0]), int(cords['12'][1])
+                    lenght = math.hypot(shandx - mouse_x, shandy - mouse_y)
                     # ______________________________________________________ #
                 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
                 await asyncio.sleep(0)
 
 
 async def hands_func():
+    global clocX, clocY, plocY, plocX, shandx, shandy, mouse_y, mouse_x, lenght
     if hands_detect:
         while True:
-            pyautogui.moveTo(mouse_x * cf_x, mouse_y * cf_y)
+            x, y = mouse_x * cf_x, mouse_y * cf_y
+            clocX = plocX + (x - plocX) / smoothening
+            clocY = plocY + (y - plocY) / smoothening
+            pyautogui.moveTo(clocX, clocY)
+            plocX, plocY = clocX, clocY
+            if lenght <= 40:
+                pyautogui.click()
             await asyncio.sleep(0)
 
 
